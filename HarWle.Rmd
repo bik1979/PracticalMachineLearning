@@ -1,0 +1,109 @@
+---
+title: "Qualitative Activity Recognition of Weight Lifting Exercises"
+author: "Victor Ruiz"
+output: html_document
+---
+
+```{r setoptions, echo=FALSE}
+library(knitr)
+opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+### Synopsis  
+  This report presents an analysis performed on the [Groupware Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har), collected by accelerometers on the belt, forearm, arm, and dumbell of 6 participants which were asked to perform the exercise correctly and incorrectly in 5 different ways.  The question that the analysis tries to answer is: Is it possible to predict how well the users performed a weight lifting exercise using the accelerometers data? The results obtained show that the model built can predict with high accuracy wether the users perform an exercise correctly or not.
+
+### Data Processing  
+  
+  The [training data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and the [test data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv) was downloaded from the links provided by Coursera. More information about the datasets is available at the [Groupware](http://groupware.les.inf.puc-rio.br/har) website. 
+  
+```{r results='hide'}
+#before start, working directory needs to be set to the directory where this file is located, in my case, "~/courseraDataSci/PrMachLearn/project"
+setwd("~/courseraDataSci/PrMachLearn/project")
+
+if (!file.exists("data/pml-training.csv")) {
+       download.file(url ="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile = "data/pml-training.csv", method = "auto")
+}
+
+
+if (!file.exists("data/pml-testing.csv")) {
+       download.file(url ="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile = "data/pml-testing.csv", method = "auto")
+}
+
+#Performing a first visual inspection of the data with `readLines`, I found out  that the files contain a valid header with column names; comma separator is used; and NA values were codified wether as "NA" or as empty strings.
+readLines("data/pml-training.csv", n = 2)
+#now load properly the datasets
+pml.training <- read.csv("data/pml-training.csv", na.strings=c("NA",""))
+pml.testing <- read.csv("data/pml-testing.csv", na.strings=c("NA",""))
+```
+
+  Once the data is loaded, check for NA values. 
+```{r}
+sum(is.na(pml.training))
+```
+  
+  The number of NAs is high compared to the number of observations. Now check for NAs grouped by columns.
+  
+```{r}
+NAcols <- colSums(is.na(pml.training))
+table(NAcols)
+```  
+  As the above values show, there are 60 variables which don't contain any NA value, whereas the rest contain mostly only NA values. Therefore I decided to exclude these variables.
+```{r}
+pml.training <- pml.training[NAcols == 0]
+```
+
+  The first seven columns contain any relevant information which can be used as predictor, but only information about the observations: record id, user id, timestamp and window id. Therefore these variables were also dropped for the analysis.
+```{r}
+pml.training <- pml.training[, -c(1:7)]
+```
+
+### Building the Model  
+  I used the random forest algorithm to solve the prediction problem. Some of the reasons which led me to choose this algorithm were:  
+  
+  * Random forests use to be very accurate, are usually one of the two top performing algorithms along with boosting.  
+  
+  * Random forest algorithm use to work good with a large number of inputs and the tidy data set obtained in the previous section has 52 predictors to work with. 
+  
+  * The algorithm has its own cross-validation, and gives an unbiased estimate of the out-of-sample error for every forest.  
+  
+  * This was also the algorithm chosen in the original paper, on which this analysis is based.
+  
+  Before building the model, it's necessary to load `caret` package and to create training and testing partitions from the `pml.training` dataset.
+```{r results='hide'}
+# create partitions for training and testing
+library(caret)
+library(randomForest)
+set.seed(1234)
+
+trainIdx <- createDataPartition(pml.training$classe, p = 0.8, list = FALSE)
+training <- pml.training[trainIdx,]
+testing <- pml.training[-trainIdx,]
+```
+
+  Now, build the prediction model. The last column, `classe` is used as the outcome and the rest are the input i.e. predictors of the algorithm. I used `oob` as resampling method. This method tests every tree using the observations that have not been used to fit that tree, referred as out-of-bag (OOB) observations. This is a straightforward way to estimate the test error without need to perform cross-validation or a validation test approach. Nevertheless, I've considered to keep the testing subset to validate the model and compare then the estimate error with the real error obtained from validation test.
+```{r cache = TRUE}
+#build model
+ctrl <- trainControl(method = "oob", allowParallel = TRUE)
+rfModel <- train(training[, -53], training[, 53], method = "rf", trControl = ctrl) 
+rfModel$finalModel
+```
+  The estimate error rate calculated using OOB samples is 0.62%, which is quite good.
+
+  Once the model is built, check its prediction accuracy using the testing dataset.
+```{r}
+#build confusion matrix
+cm <- confusionMatrix(testing$classe,predict(rfModel,testing))
+error <- 100 * round(1 - cm$overall["Accuracy"], 4)
+cm
+```
+  The model is highly accurate, the error rate on the testing dataset is 
+  `r error`%, almost the same than estimated value.  
+
+ To conclude the analysis, the model is used to predict the outcome on the test dataset.  
+```{r}
+#first, need to apply same transformations to this dataset
+pml.testing <- pml.testing[NAcols == 0]
+pml.testing <- pml.testing[, -c(1:7)]
+predict(rfModel, pml.testing)
+```
+
