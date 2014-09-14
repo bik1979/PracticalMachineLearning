@@ -1,16 +1,16 @@
 ---
-title: "Qualitative Activity Recognition of Weight Lifting Exercises"
-author: "Victor Ruiz"
 output: html_document
 ---
+## Qualitative Activity Recognition of Weight Lifting Exercises  
 
+#### *Victor Ruiz*
 ```{r setoptions, echo=FALSE}
 library(knitr)
 opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
 ### Synopsis  
-  This report presents an analysis performed on the [Groupware Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har), collected by accelerometers on the belt, forearm, arm, and dumbell of 6 participants which were asked to perform the exercise correctly and incorrectly in 5 different ways.  The question that the analysis tries to answer is: Is it possible to predict how well the users performed a weight lifting exercise using the accelerometers data? The results obtained show that the model built can predict with high accuracy wether the users perform an exercise correctly or not.
+  This report presents an analysis performed on the [Groupware Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har), collected by accelerometers placed on the belt, forearm, arm, and dumbell of 6 participants which were asked to perform the exercise correctly and incorrectly in 5 different ways. The question that the analysis tries to answer is: Is it possible to predict how well the users performed a weight lifting exercise using the accelerometers data? The results obtained show that the model built can predict with high accuracy wether the users perform an exercise correctly or not.
 
 ### Data Processing  
   
@@ -70,7 +70,6 @@ pml.training <- pml.training[, -c(1:7)]
   
   Before building the model, it's necessary to load `caret` package and to create training and testing partitions from the `pml.training` dataset.
 ```{r results='hide'}
-# create partitions for training and testing
 library(caret)
 library(randomForest)
 set.seed(1234)
@@ -82,7 +81,6 @@ testing <- pml.training[-trainIdx,]
 
   Now, build the prediction model. The last column, `classe` is used as the outcome and the rest are the input i.e. predictors of the algorithm. I used `oob` as resampling method. This method tests every tree using the observations that have not been used to fit that tree, referred as out-of-bag (OOB) observations. This is a straightforward way to estimate the test error without need to perform cross-validation or a validation test approach. Nevertheless, I've considered to keep the testing subset to validate the model and compare then the estimate error with the real error obtained from validation test.
 ```{r cache = TRUE}
-#build model
 ctrl <- trainControl(method = "oob", allowParallel = TRUE)
 rfModel <- train(training[, -53], training[, 53], method = "rf", trControl = ctrl) 
 rfModel$finalModel
@@ -91,7 +89,6 @@ rfModel$finalModel
 
   Once the model is built, check its prediction accuracy using the testing dataset.
 ```{r}
-#build confusion matrix
 cm <- confusionMatrix(testing$classe,predict(rfModel,testing))
 error <- 100 * round(1 - cm$overall["Accuracy"], 4)
 cm
